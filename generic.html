@@ -1,0 +1,421 @@
+<!DOCTYPE HTML>
+<!--
+	Forty by HTML5 UP
+	html5up.net | @ajlkn
+	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+	<head>
+		<title>Mithat Berk Ozture</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="assets/css/main.css" />
+		<noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
+	</head>
+	<body class="is-preload">
+
+		<!-- Wrapper -->
+			<div id="wrapper">
+
+				<!-- Header -->
+					<header id="header" class="alt">
+						<a href="index.html" class="logo"><strong>Mithat Berk Ozture</strong> <span>Software Engineer</span></a>
+						<nav>
+							<a href="#menu">Menu</a>
+						</nav>
+					</header>
+
+				<!-- Menu -->
+				<nav id="menu">
+					<ul class="links">
+						<li><a href="index.html">Home</a></li>
+						<li><a href="landing.html">Web crawling with Python</a></li>
+						<!-- <li><a href="generic.html">Generic</a></li> -->
+						<!-- <li><a href="elements.html">Elements</a></li> -->
+					</ul>
+				</nav>
+
+				<!-- Main -->
+					<div id="main" class="alt">
+
+						<!-- One -->
+							<section id="one">
+								<div class="inner">
+									<header class="major">
+										<h1>The Code</h1>
+									</header>
+									<span class="image main"><img src="images/0_modif_wilkommen_image.jpg" alt="" /></span>
+									<ul class="actions">
+										<li><a href="/images/GitHub_Etymology.xlsx" download class="button">Download the Excel File</a></li>
+									</ul>
+									<p>Let's start with importing the packages we will be needing throughout the program:</p>
+
+									<pre><code>
+import pandas as pd
+import re
+import requests
+from bs4 import BeautifulSoup
+									</code></pre>
+
+
+									<br /><p>When referencing vocabulary books, you may realize that at the beginning of the majority of German words, there exists a number of articles (Artikel) and reflexive pronouns. While the articles indicate the true nature of a noun, the presence (or lack thereof) of reflexive pronouns indicate whether a verb is reflexive or transitive. In case our input/extraction contains any of these prepositions, with the following function, we can get rid of these from our string of input:</p>
+									<pre><code>
+def clean_the_word(word):
+    #Clean the input word
+    artikels_and_others = ["die ", "das ", "der ", "sich ", "(sich) ", "(sich etwas) ", "(jdm)", "(jdm./sich etwas) ", "(jdn./sich) ", " "]
+    for b in artikels_and_others:
+        if word.startswith(b):
+            word = word.replace(b, '')  
+    return word
+									</code></pre>
+
+
+									<br /><p>Before this code was written, Duden's dictionary of etymology (Duden - Das Herkunftswörterbuch) was split into multiple PDF files in a way that there was a single PDF file for each initial. (For example a single PDF file for the words starting with the letter "A" and another for the words starting with the letter "B".)</p>
+									<p>Later on, all these files were converted into HTML format. The name pattern for these files were: "X_formatted.html" where 'X' denoted the designated letter. The following code receives a word as input, searches it in these local HTML files and extracts the corresponding HTML entry in BeautifulSoup:</p>
+									<pre><code>
+def block_data(word_list):
+    initial_word = word_list[0].upper()
+    forbidden_list = ["Ö", "Ä", "Ü"]
+    if initial_word not in forbidden_list:
+        file_path = 'Desktop/Separating_PDF/HTML_Files/' + initial_word + '_formatted.html'
+        with open(file_path) as html_file:
+            soup = BeautifulSoup(html_file, 'html')
+        for e in soup.find_all('br'):
+            e.replace_with(' ')
+        html_style = "font-family: Po.FrutigerCn-fett; font-size:7px"
+        regex_word = re.compile(word_list + ".*")
+        find_word = soup.find(style=html_style, text=regex_word)
+        string_find_word = str(find_word)
+        if find_word is None:
+            print("It is None!!")
+            return("Word Not Found")
+        else:
+            parent = find_word.parent
+            block = str(parent)
+            next_div = parent.find_next("div")
+            condition1 = re.search(r'.*left:41px.*', str(next_div))
+            condition2 = re.search(r'.*left:202px.*', str(next_div))
+            condition3 = re.search(r'.*left:211px.*', str(next_div))
+            while (condition1 is None) and (condition2 is None) and (condition3 is None):
+                block = block + str(next_div)
+                next_div = next_div.find_next("div")
+                condition1 = re.search(r'.*left:41px.*', str(next_div))
+                condition2 = re.search(r'.*left:202px.*', str(next_div))
+                condition3 = re.search(r'.*left:211px.*', str(next_div))
+            block_group = list(block.partition(string_find_word))
+            block_group.pop(0)
+            final_block = ''.join(block_group)
+            return final_block
+    else: 
+        return("Word Not Found")
+									</code></pre>
+
+
+									<br /><p>The following code receives a Soup and outputs its text in string format. (It will essentially be used to extract the requested entry from Duden's dictionary of etymology):</p>
+									<pre><code>
+def extract_text(block):
+    if block == "Word Not Found":
+        print("The word you were looking for was not found in dictionary.")
+    else:
+        block_soup = BeautifulSoup(block, 'html.parser')
+        pretty_image = block_soup.prettify()
+        string_list = list(block_soup.strings)
+        joint_text = ''.join(string_list)
+        final_text = joint_text.replace('\n', '').replace('\r', '').replace('\t', '').replace('- ', '')
+        duden_search(final_text)
+        #return final_text
+        #paragraph_list.append(final_text)
+        #print(final_text)
+									</code></pre>
+
+
+									<br /><p>The following code can be used to search for a word's cognates in different languages. By default, the code only extracts the word cognates in English, but it can be manipulated to search for cognates in other languages as well. At the end of the search, the function enters the cognate into a designated column in DataFrame:</p>
+									<pre><code>
+def duden_search(text):
+    etymology_list = ["engl. "]
+    #etymology_list = ["engl. ", "dt. ", "lat. ", "griech. ", "schwed. ", "dän. ", "niederl. ", "norw. ", "isländ. "]
+    for i in etymology_list:
+        etym_condition = i in text
+        if etym_condition is True:
+            arrow_list=[]
+            arrow_group = text.split(i)
+            #arrow_group = text.split(i + " ")
+            #arrow_group = text.split(' ' + i + ' ')
+            arrow_group.pop(0)
+            for a in arrow_group:
+                first_word = a.split(' ')[0]
+                arrow_list.append(first_word)
+            print("Etymologies for " + german_word + " (for " + i + ") etymology was FOUND")
+            for n in range(len(arrow_list)):
+                arrow_list[n] = prefix_suffix_cleanup(arrow_list[n])
+            if len(arrow_list) > 1:
+                etymology = '; '.join(arrow_list)
+            elif len(arrow_list) == 1:
+                etymology = arrow_list[0]
+            df.at[t, 'engl'] = etymology
+        else:
+            print("No etymology for " + german_word + " (for " + i + ") :(")
+									</code></pre>		
+									
+									
+									<br /><p>If a word consists of any unwanted characters at the beginning or at the end, this function can get rid of the unwanted characters and output a cleaner version of the string:</p>
+									<pre><code>
+
+def prefix_suffix_cleanup(element):
+    #Check for the Prefix (from unwanted characters)
+    while re.match('^\W+.*|^\d+.*', element):
+        element = element[1:]
+    #Check for the Suffix (from unwanted characters)
+    while re.match('.*\d+$|.*\W+$', element):
+        element = element[:-1]
+    return element
+									</code></pre>
+
+
+									<br /><p>The ensuing function receives a German word and translates it into English. The function crawls in Cambridge German-English dictionary and outputs the most common definitions in a single string:</p>
+									<pre><code>
+def de_2_english_translation(word):
+    #Set a random HTTP header name to prevent connection errors
+    random_header = {"User-Agent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"}
+
+    #Search for the English Translation (Cambridge Online Dictionary)
+    url1 = "https://dictionary.cambridge.org/dictionary/german-english/" + word
+    resp1 = requests.get(url1, headers=random_header)
+    resp1.status_code
+    soup1 = BeautifulSoup(resp1.text)
+    pretty_soup1 = soup1.prettify()
+    using_attrs1 = soup1.find(attrs={'name':'description'})
+    pretty_custom1 = str(using_attrs1['content'])
+    
+    #Clear the extracted translation from unwanted words/phrases
+    modified1 = pretty_custom1[pretty_custom1.find('translate: ') + 11:len(pretty_custom1)]
+    double_modified1 = modified1.replace('. Learn more in the Cambridge German-English Dictionary.', '')
+    
+    #If there are more than 4 words, get the first 4 words and delete the rest
+    en_translations = double_modified1.split(', ')
+    if len(en_translations) > 4:
+        en_translations = en_translations[:4]
+    en_translations_string = '; '.join(en_translations)
+    
+    #Return the output in a single string
+    return en_translations_string
+									</code></pre>
+
+
+									<br /><p>The next function receives a Turkish word and translates it into German. The function crawls in Langenscheidt German-Turkish dictionary and outputs the most common definitions in a single string:</p>
+									<pre><code>
+def de_2_turkish_translation(word):
+    #Set a random HTTP header name to prevent connection errors
+    random_header = {"User-Agent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"}
+
+    #Search for the Turkish translations (Langenscheidt)
+    #word = "Ordination"
+    url2 = "https://tr.langenscheidt.com/almanca-turkce/" + word
+    resp2 = requests.get(url2, headers=random_header)
+    resp2.status_code
+    soup2 = BeautifulSoup(resp2.text)
+    pretty_soup2 = soup2.prettify()
+    using_attrs2 = soup2.find(attrs={'class':'btn-inner'})
+    
+    if str(using_attrs2) != "None":
+        string_custom2 = str(using_attrs2.string)
+        
+        #Put the Turkish translations into a list format
+        tr_translations = string_custom2.split(', ')
+        
+        #Clean the translations from unwanted characters
+        for n in range(len(tr_translations)):
+            while re.match('^\W+.*|^\d+.*', tr_translations[n]):
+                tr_translations[n] = tr_translations[n][1:]
+            #Check for the Suffix
+            while re.match('.*\d+$|.*\W+$', tr_translations[n]):
+                tr_translations[n] = tr_translations[n][:-1]
+
+        #Enter the Turkish translations into corresponding fields of the dataframe
+        for d in range(len(tr_translations)):
+            if d < 6:
+                column_name = "Turkish Translation-" + str(d + 1)
+                #df.at[t, column_name] = tr_translations[d]
+                df.at[t, "Turkish Translation-" + str(d + 1)] = tr_translations[d]
+									</code></pre>
+
+
+									<br /><p>The next function receives a German word and searches for its etymological features in Wiktionary. (These features are usually written below the German header, and Etymology sub-header of a Wiktionary page):</p>
+									<pre><code>
+def wiktionary_soup(word):
+    #Set a random HTTP header name to prevent connection errors
+    random_header = {"User-Agent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"}
+
+    #Get the BeautifulSoup from Wiktionary
+    #word = "weh tun"
+    url5 = "https://en.wiktionary.org/wiki/" + word
+    resp5 = requests.get(url5, headers=random_header)
+    resp5.status_code
+    #return BeautifulSoup(resp5.text)
+    soup5 = BeautifulSoup(resp5.text)
+
+    #Extract the "Etymology" block from the requested page
+    if soup5.find(attrs={'id':'German'}, text = 'German') != None:
+        german_block = soup5.find(attrs={'id':'German'}, text = 'German').find_parent(name='h2').find_next(name='h3').find_next(name='p')
+        pretty_german_block = german_block.prettify()
+        return german_block
+    else:
+        return "No German Block"
+									</code></pre>
+
+
+									<br /><p>The following function uses the Wiktionary output to search for etymological roots in German language. (Hence the name “intra_language_etymology”):</p>
+									<pre><code>
+def intra_language_etymology(word):
+    #Get the German language block (in soup format) from Wiktionary
+    if wiktionary_soup(word) != "No German Block":
+        soup3 = wiktionary_soup(word)
+        pretty_input = soup3.prettify()
+        
+        #Search for the German roots (and their English translations) in the block
+        regex_language3 = re.compile("^/wiki/.*#German$")
+        using_attrs3 = soup3.find_all(attrs={'href':regex_language3})
+        de_etymology_German = []
+        de_etymology_English = []
+        for e in using_attrs3:
+            if e.string != None:    
+                de_etymology_German.append(str(e.string))
+            if e.find_next(attrs={'class':'mention-gloss'}) != None:
+                de_etymology_English.append("(" + str(e.find_next(attrs={'class':'mention-gloss'}).string) + ")")
+            else:
+                de_etymology_English.append(" ")
+            
+        #Enter the German roots (and their English translations) into DataFrame
+        if de_etymology_German != []:
+            for n in range(len(de_etymology_German)):
+                de_column_string = str(n + 1) + ")↑"            
+                df.at[t, de_column_string] = de_etymology_German[n]
+        if de_etymology_English != []:
+            for n in range(len(de_etymology_English)):
+                en_column_string = str(n + 1) + ") Translation"     
+                if de_etymology_English[n] != " ":
+                    df.at[t, en_column_string] = de_etymology_English[n]
+                else:
+                    #If Wiktionary did not specify a definition for the German 
+                    #root, search the word in an English-German dictionary)
+                    df.at[t, en_column_string] = "(" + de_2_english_translation(de_etymology_German[n]) +  ")"
+                    #print("HELLO")
+                    #print(de_etymology_German[n])
+                    #english_translation("zu")
+    else:
+        print("No German language section (and maybe no webpage at all) for the word: '" + word + "'  was found.")
+									</code></pre>
+
+
+									<br /><p>The following function uses the Wiktionary output to search for etymological cognates in English language. (Note that this is the second functions that searches for English cognates. The more diverse the sources, the better…):</p>
+									<pre><code>
+def inter_language_etymology(word):
+    #Get the German language block (in soup format) from Wiktionary
+    if wiktionary_soup(word) != "No German Block":
+        soup4 = wiktionary_soup(word)
+        pretty_input = soup4.prettify()
+
+        #Search for the English etimology in the block
+        regex_language4 = re.compile("^/wiki/.*#English$")
+        using_attrs4 = soup4.find_all(attrs={'href':regex_language4})
+        en_etymology_English = []
+        for f in using_attrs4:
+            if f.string != None:
+                en_etymology_English.append(str(f.string))
+            print("No English word was found similar to '" + word + "'.")
+
+        #Enter the English etymologies into DataFrame
+        if en_etymology_English != []:
+            df.at[t, 'engl (Wiktionary)'] = '; '.join(en_etymology_English)
+    else:
+        print("No Wiktionary output (no Webpage/'Etymology' block) for the word: '" + word + "'  was found.")
+									</code></pre>
+
+
+									<br /><p>The final part of the program iterates over a number of German words in an excel file, sequentially calls the aforementioned functions, and outputs all of the requested cognates, translations and word origins in a single excel file:</p>
+									<pre><code>
+file_directory = "Desktop/German_Turkish_translations/Input_Files/GitHub_Etymology.xlsx"
+df = pd.read_excel(file_directory)
+df = df.fillna('')
+df_length = len(df.index)
+for i in list(df.columns):
+    df = df.astype({i: str})
+
+
+for t in list(range(df_length)):
+    german_word = df.loc[t]['German']
+    english_translation = df.loc[t]['English Translation']
+    german_word = clean_the_word(german_word)
+    print(german_word)
+    if german_word != '':
+        extract_text(block_data(german_word))
+        de_2_turkish_translation(german_word)
+        intra_language_etymology(german_word)
+        inter_language_etymology(german_word)
+
+
+df.to_excel("Remaining_Words_translations.xlsx")
+print ("Process complete-Excel generated")
+									</code></pre>
+								</div>
+							</section>
+
+					</div>
+
+				<!-- Contact -->
+				<section id="contact">
+					<div class="inner">
+						<section class="split">
+							<section>
+								<div class="contact-method">
+									<span class="icon solid alt fa-envelope"></span>
+									<h3>Email</h3>
+									<a href="#">berkozture@hotmail.com</a>
+								</div>
+							</section>
+							<!-- <section>
+								<div class="contact-method">
+									<span class="icon solid alt fa-phone"></span>
+									<h3>Phone</h3>
+									<span>+49 176 85512686</span>
+								</div>
+							</section> -->
+							<section>
+								<div class="contact-method">
+									<span class="icon solid alt fa-home"></span>
+									<h3>Address</h3>
+									<span>Rigaer Straße 80<br />
+									Berlin, 10247<br />
+									Deutschland</span>
+								</div>
+							</section>
+						</section>
+					</div>
+				</section>
+
+			<!-- Footer -->
+				<!-- <footer id="footer">
+					<div class="inner">
+						<ul class="icons">
+							<li><a href="#" class="icon brands alt fa-github"><span class="label">GitHub</span></a></li>
+							<li><a href="www.linkedin.com/in/mithat-berk-ozture-66a4b6136" class="icon brands alt fa-linkedin-in"><span class="label">LinkedIn</span></a></li>
+						</ul>
+						<ul class="copyright">
+							<li>&copy; Untitled</li><li>Design: <a href="https://html5up.net">HTML5 UP</a></li>
+						</ul>
+					</div>
+				</footer> -->
+
+			</div>
+
+		<!-- Scripts -->
+			<script src="assets/js/jquery.min.js"></script>
+			<script src="assets/js/jquery.scrolly.min.js"></script>
+			<script src="assets/js/jquery.scrollex.min.js"></script>
+			<script src="assets/js/browser.min.js"></script>
+			<script src="assets/js/breakpoints.min.js"></script>
+			<script src="assets/js/util.js"></script>
+			<script src="assets/js/main.js"></script>
+
+	</body>
+</html>
